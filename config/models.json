@@ -1,0 +1,37 @@
+{
+  "providers": {
+    "anthropic": {
+      "baseUrl": "https://api.anthropic.com",
+      "models": {
+        "claude-opus-4": { "maxTokens": 4096, "temperature": 0.7 },
+        "claude-sonnet-4": { "maxTokens": 4096, "temperature": 0.7 },
+        "claude-haiku-4-5": { "maxTokens": 2048, "temperature": 0.5 }
+      }
+    },
+    "openai": {
+      "baseUrl": "https://api.openai.com/v1",
+      "models": {
+        "gpt-4o": { "maxTokens": 4096, "temperature": 0.8 }
+      }
+    },
+    "deepseek": {
+      "baseUrl": "https://api.deepseek.com",
+      "models": {
+        "deepseek-v3": { "maxTokens": 4096, "temperature": 0.6 }
+      }
+    },
+    "google": {
+      "baseUrl": "https://generativelanguage.googleapis.com/v1beta",
+      "models": {
+        "gemini-2.5-pro": { "maxTokens": 4096, "temperature": 0.7 }
+      }
+    }
+  },
+  "fallback": {
+    "claude-opus-4": "claude-sonnet-4",
+    "gpt-4o": "claude-sonnet-4",
+    "deepseek-v3": "claude-sonnet-4",
+    "gemini-2.5-pro": "claude-sonnet-4",
+    "claude-haiku-4-5": "claude-sonnet-4"
+  }
+}

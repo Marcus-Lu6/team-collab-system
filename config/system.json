@@ -1,0 +1,79 @@
+{
+  "roles": [
+    {
+      "id": "strategic-director",
+      "name": "Strategic Director",
+      "level": "L1",
+      "model": "claude-opus-4",
+      "capabilities": ["strategic-planning", "final-decision", "resource-allocation", "conflict-resolution"],
+      "canCommunicateWith": ["*"],
+      "escalationPath": [],
+      "systemPrompt": "You are the Strategic Director. You make final decisions, set priorities, and resolve conflicts between teams. Be concise and decisive."
+    },
+    {
+      "id": "project-manager",
+      "name": "Project Manager",
+      "level": "L2",
+      "model": "claude-sonnet-4",
+      "capabilities": ["task-decomposition", "coordination", "progress-tracking", "risk-assessment"],
+      "canCommunicateWith": ["strategic-director", "creative-lead", "developer", "data-analyst", "qa-engineer"],
+      "escalationPath": ["strategic-director"],
+      "systemPrompt": "You are the Project Manager. You decompose strategic goals into actionable tasks, coordinate between teams, and track progress. Be organized and clear."
+    },
+    {
+      "id": "creative-lead",
+      "name": "Creative Lead",
+      "level": "L2",
+      "model": "gpt-4o",
+      "capabilities": ["ideation", "design-direction", "content-strategy", "user-experience"],
+      "canCommunicateWith": ["strategic-director", "project-manager", "developer", "data-analyst", "qa-engineer"],
+      "escalationPath": ["strategic-director"],
+      "systemPrompt": "You are the Creative Lead. You generate creative solutions, set design direction, and ensure the user experience is optimal. Think outside the box."
+    },
+    {
+      "id": "developer",
+      "name": "Developer",
+      "level": "L3",
+      "model": "deepseek-v3",
+      "capabilities": ["code-generation", "architecture", "debugging", "documentation"],
+      "canCommunicateWith": ["project-manager", "creative-lead", "data-analyst", "qa-engineer"],
+      "escalationPath": ["project-manager", "strategic-director"],
+      "systemPrompt": "You are the Developer. You implement solutions with clean, efficient code. Follow best practices and document your decisions."
+    },
+    {
+      "id": "data-analyst",
+      "name": "Data Analyst",
+      "level": "L3",
+      "model": "gemini-2.5-pro",
+      "capabilities": ["data-analysis", "metrics-design", "reporting", "data-pipeline"],
+      "canCommunicateWith": ["project-manager", "creative-lead", "developer", "qa-engineer"],
+      "escalationPath": ["project-manager", "strategic-director"],
+      "systemPrompt": "You are the Data Analyst. You analyze data, design metrics, and provide data-driven insights. Be precise and evidence-based."
+    },
+    {
+      "id": "qa-engineer",
+      "name": "QA Engineer",
+      "level": "L3",
+      "model": "claude-haiku-4-5",
+      "capabilities": ["testing", "quality-assurance", "bug-detection", "acceptance-criteria"],
+      "canCommunicateWith": ["project-manager", "creative-lead", "developer", "data-analyst"],
+      "escalationPath": ["project-manager", "strategic-director"],
+      "systemPrompt": "You are the QA Engineer. You verify quality, find bugs, and ensure deliverables meet acceptance criteria. Be thorough and systematic."
+    }
+  ],
+  "permissions": {
+    "sameLevel": "free",
+    "crossLayer": "logged",
+    "skipLayer": "logged-and-flagged"
+  },
+  "logging": {
+    "batchSize": 20,
+    "batchIntervalMs": 300000,
+    "logPath": "logs",
+    "decisionLogSuffix": "-decisions"
+  },
+  "escalation": {
+    "maxRetries": 2,
+    "timeoutMs": 30000
+  }
+}
