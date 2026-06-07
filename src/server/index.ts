@@ -84,7 +84,7 @@ httpServer.listen(PORT, () => {
 });
 
 // Graceful shutdown
-process.on('SIGINT', () => {
-  orchestrator.shutdown();
+process.on('SIGINT', async () => {
+  await orchestrator.shutdown();
   process.exit(0);
 });

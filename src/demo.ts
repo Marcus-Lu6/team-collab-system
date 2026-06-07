@@ -119,7 +119,7 @@ async function main() {
   }
 
   // Cleanup
-  orchestrator.shutdown();
+  await orchestrator.shutdown();
   console.log('\n✅ Demo complete!');
 }
 

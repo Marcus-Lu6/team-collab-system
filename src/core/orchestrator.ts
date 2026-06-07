@@ -6,7 +6,7 @@ import { StrategicAgent } from '../agents/strategic.js';
 import { ManagerAgent } from '../agents/manager.js';
 import { ExecutorAgent } from '../agents/executor.js';
 import { SqliteLogger } from '../logging/sqlite-logger.js';
-import { GitHubLogger } from '../logging/github-logger.js';
+import { GitHubLogger, type GitHubLoggerConfig } from '../logging/github-logger.js';
 import type { SystemConfig, Message, Role } from './types.js';
 import type { BaseAgent } from '../agents/base-agent.js';
 
@@ -19,15 +19,23 @@ export class Orchestrator {
   private githubLogger: GitHubLogger;
   private config: SystemConfig;
 
-  constructor(configPath?: string) {
+  constructor(configPath?: string, options?: { repoRoot?: string; autoPush?: boolean }) {
     const cfgPath = configPath || resolve(process.cwd(), 'config/system.json');
     this.config = JSON.parse(readFileSync(cfgPath, 'utf-8')) as SystemConfig;
+
+    const repoRoot = options?.repoRoot || process.cwd();
 
     // Initialize core components
     this.messageBus = new MessageBus();
     this.roleRegistry = new RoleRegistry(this.config);
-    this.sqliteLogger = new SqliteLogger(resolve(process.cwd(), 'data/system.db'));
-    this.githubLogger = new GitHubLogger(this.config.logging);
+    this.sqliteLogger = new SqliteLogger(resolve(repoRoot, 'data/system.db'));
+
+    const loggerConfig: GitHubLoggerConfig = {
+      ...this.config.logging,
+      repoRoot,
+      autoPush: options?.autoPush ?? true,
+    };
+    this.githubLogger = new GitHubLogger(loggerConfig);
 
     // Wire up logging
     this.messageBus.on('message:sent', (event) => {
@@ -165,11 +173,13 @@ export class Orchestrator {
     agents: number;
     dbStats: ReturnType<SqliteLogger['getStats']>;
     githubBuffer: number;
+    githubCommits: number;
   } {
     return {
       agents: this.agents.size,
       dbStats: this.sqliteLogger.getStats(),
       githubBuffer: this.githubLogger.getBufferSize(),
+      githubCommits: this.githubLogger.getCommitCount(),
     };
   }
 
@@ -183,9 +193,16 @@ export class Orchestrator {
   /**
    * Shutdown gracefully
    */
-  shutdown(): void {
-    this.githubLogger.stop();
+  async shutdown(): Promise<void> {
+    await this.githubLogger.stop();
     this.sqliteLogger.close();
     console.log('🛑 Orchestrator shut down');
+  }
+
+  /**
+   * Force flush GitHub logger (for testing)
+   */
+  async flushLogs(): Promise<void> {
+    await this.githubLogger.forceFlush();
   }
 }

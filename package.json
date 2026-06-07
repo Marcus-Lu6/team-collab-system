@@ -8,6 +8,7 @@
     "build": "tsc",
     "dev": "tsx watch src/server/index.ts",
     "demo": "tsx src/demo.ts",
+    "test:logger": "tsx src/test-github-logger.ts",
     "start": "node dist/server/index.js",
     "lint": "eslint src --ext .ts,.tsx",
     "format": "prettier --write \"src/**/*.ts\""
