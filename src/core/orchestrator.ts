@@ -1,5 +1,6 @@
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
+import { nanoid } from 'nanoid';
 import { MessageBus } from './message-bus.js';
 import { RoleRegistry } from './role-registry.js';
 import { StrategicAgent } from '../agents/strategic.js';
@@ -7,7 +8,7 @@ import { ManagerAgent } from '../agents/manager.js';
 import { ExecutorAgent } from '../agents/executor.js';
 import { SqliteLogger } from '../logging/sqlite-logger.js';
 import { GitHubLogger, type GitHubLoggerConfig } from '../logging/github-logger.js';
-import type { SystemConfig, Message, Role } from './types.js';
+import type { SystemConfig, Message, Role, Task, SystemEvent, EventHandler } from './types.js';
 import type { BaseAgent } from '../agents/base-agent.js';
 
 export class Orchestrator {
@@ -18,6 +19,7 @@ export class Orchestrator {
   private sqliteLogger: SqliteLogger;
   private githubLogger: GitHubLogger;
   private config: SystemConfig;
+  private tasks: Map<string, Task> = new Map();
 
   constructor(configPath?: string, options?: { repoRoot?: string; autoPush?: boolean }) {
     const cfgPath = configPath || resolve(process.cwd(), 'config/system.json');
@@ -89,9 +91,6 @@ export class Orchestrator {
   }
 
   private wireHierarchy(): void {
-    // Connect L3 agents to their L2 managers
-    const managers = Array.from(this.agentsByRole.entries())
-      .filter(([_, agent]) => agent.role.level === 'L2');
     const executors = Array.from(this.agentsByRole.entries())
       .filter(([_, agent]) => agent.role.level === 'L3');
 
@@ -105,23 +104,22 @@ export class Orchestrator {
     }
   }
 
-  /**
-   * Get an agent by role ID
-   */
+  // ═══════════════════════════════════════════════════════
+  //  Agent Access
+  // ═══════════════════════════════════════════════════════
+
   getAgent(roleId: string): BaseAgent | undefined {
     return this.agentsByRole.get(roleId);
   }
 
-  /**
-   * Get all agents
-   */
   getAllAgents(): BaseAgent[] {
     return Array.from(this.agents.values());
   }
 
-  /**
-   * Send a message from one role to another
-   */
+  // ═══════════════════════════════════════════════════════
+  //  Messaging
+  // ═══════════════════════════════════════════════════════
+
   sendMessage(fromRoleId: string, toRoleId: string, type: Message['type'], content: string, metadata?: Message['metadata']): Message | { error: string } {
     const fromAgent = this.agentsByRole.get(fromRoleId);
     const toAgent = this.agentsByRole.get(toRoleId);
@@ -139,9 +137,98 @@ export class Orchestrator {
     });
   }
 
-  /**
-   * Process all pending messages across agents (one round)
-   */
+  getMessageHistory(limit?: number, filters?: { type?: Message['type']; crossLayerOnly?: boolean; agentId?: string }): Message[] {
+    return this.messageBus.getHistory({ limit, ...filters });
+  }
+
+  getMessageById(messageId: string): Message | undefined {
+    return this.messageBus.getHistory({}).find(m => m.id === messageId);
+  }
+
+  getMessageThread(messageId: string): Message[] {
+    return this.messageBus.getThread(messageId);
+  }
+
+  searchMessages(query: string): Message[] {
+    const all = this.messageBus.getHistory({});
+    const q = query.toLowerCase();
+    return all.filter(m =>
+      m.content.toLowerCase().includes(q) ||
+      m.from.roleId.toLowerCase().includes(q) ||
+      m.to.roleId.toLowerCase().includes(q) ||
+      m.type.toLowerCase().includes(q)
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════
+  //  Tasks
+  // ═══════════════════════════════════════════════════════
+
+  createTask(params: { title: string; description: string; assignTo: string; priority: string }): Task | { error: string } {
+    const agent = this.agentsByRole.get(params.assignTo);
+    if (!agent) {
+      return { error: `Agent not found: ${params.assignTo}` };
+    }
+
+    const task: Task = {
+      id: nanoid(),
+      title: params.title,
+      description: params.description,
+      status: 'pending',
+      assignedTo: params.assignTo,
+      createdBy: 'system',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      priority: params.priority as Task['priority'],
+    };
+
+    this.tasks.set(task.id, task);
+    this.sqliteLogger.logTask(task);
+
+    // Send as a message to the assigned agent
+    this.sendMessage('strategic-director', params.assignTo, 'task', `[Task ${task.id}] ${params.title}: ${params.description}`, {
+      taskId: task.id,
+      priority: task.priority,
+    });
+
+    return task;
+  }
+
+  getTasks(filters?: { status?: string; assignedTo?: string }): Task[] {
+    let result = Array.from(this.tasks.values());
+    if (filters?.status) {
+      result = result.filter(t => t.status === filters.status);
+    }
+    if (filters?.assignedTo) {
+      result = result.filter(t => t.assignedTo === filters.assignedTo);
+    }
+    return result;
+  }
+
+  // ═══════════════════════════════════════════════════════
+  //  Hierarchy & Config
+  // ═══════════════════════════════════════════════════════
+
+  getHierarchy(): ReturnType<RoleRegistry['getHierarchy']> {
+    return this.roleRegistry.getHierarchy();
+  }
+
+  getRoles(): Role[] {
+    return this.roleRegistry.getAll();
+  }
+
+  // ═══════════════════════════════════════════════════════
+  //  Events (for WebSocket wiring)
+  // ═══════════════════════════════════════════════════════
+
+  onEvent(eventType: SystemEvent['type'], handler: EventHandler): void {
+    this.messageBus.on(eventType, handler);
+  }
+
+  // ═══════════════════════════════════════════════════════
+  //  Processing
+  // ═══════════════════════════════════════════════════════
+
   async processRound(): Promise<number> {
     let processed = 0;
     for (const agent of this.agents.values()) {
@@ -153,9 +240,6 @@ export class Orchestrator {
     return processed;
   }
 
-  /**
-   * Run processing loop until no more pending work
-   */
   async runUntilIdle(maxRounds = 10): Promise<void> {
     let round = 0;
     while (round < maxRounds) {
@@ -166,42 +250,32 @@ export class Orchestrator {
     }
   }
 
-  /**
-   * Get system stats
-   */
+  // ═══════════════════════════════════════════════════════
+  //  Stats & Lifecycle
+  // ═══════════════════════════════════════════════════════
+
   getStats(): {
     agents: number;
     dbStats: ReturnType<SqliteLogger['getStats']>;
     githubBuffer: number;
     githubCommits: number;
+    activeTasks: number;
   } {
     return {
       agents: this.agents.size,
       dbStats: this.sqliteLogger.getStats(),
       githubBuffer: this.githubLogger.getBufferSize(),
       githubCommits: this.githubLogger.getCommitCount(),
+      activeTasks: Array.from(this.tasks.values()).filter(t => t.status !== 'completed').length,
     };
   }
 
-  /**
-   * Get message history
-   */
-  getMessageHistory(limit?: number): Message[] {
-    return this.messageBus.getHistory({ limit });
-  }
-
-  /**
-   * Shutdown gracefully
-   */
   async shutdown(): Promise<void> {
     await this.githubLogger.stop();
     this.sqliteLogger.close();
     console.log('🛑 Orchestrator shut down');
   }
 
-  /**
-   * Force flush GitHub logger (for testing)
-   */
   async flushLogs(): Promise<void> {
     await this.githubLogger.forceFlush();
   }
