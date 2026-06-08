@@ -55,9 +55,9 @@ npm run dev
 ## Project Status
 
 - [x] Phase 1: Core Engine (MessageBus, RoleRegistry, Agents, SQLite, Demo)
-- [ ] Phase 2: GitHub Logger (git commit integration)
-- [ ] Phase 3: API Server (full CRUD + WebSocket)
-- [ ] Phase 4: Web Dashboard (React + D3.js)
+- [x] Phase 2: GitHub Logger (simple-git batch commit)
+- [x] Phase 3: API Server (full CRUD + search + WebSocket events)
+- [x] Phase 4: Web Dashboard (React + Tailwind + real-time)
 - [ ] Phase 5: Full Model Support (5 providers)
 - [ ] Phase 6: Conflict Resolution
 - [ ] Phase 7: Plugin System
